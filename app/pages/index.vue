@@ -17,6 +17,28 @@ const nameInputError = ref('')
 const top3 = ref<any[]>([])
 const loadingLeaderboard = ref(false)
 
+// Character Customizer State
+const capColor = ref('#a855f7')
+const shirtColor = ref('#06b6d4')
+const pantsColor = ref('#334155')
+const selectedPresetName = ref('Default')
+
+const presets = [
+  { name: 'Default', cap: '#a855f7', shirt: '#06b6d4', pants: '#334155' },
+  { name: 'Fire', cap: '#ef4444', shirt: '#f59e0b', pants: '#451a03' },
+  { name: 'Forest', cap: '#22c55e', shirt: '#854d0e', pants: '#1e293b' },
+  { name: 'Sakura', cap: '#f43f5e', shirt: '#fdf2f8', pants: '#4c0519' },
+  { name: 'Hacker', cap: '#14b8a6', shirt: '#1e293b', pants: '#030712' },
+  { name: 'Gold', cap: '#eab308', shirt: '#1e1b4b', pants: '#312e81' },
+]
+
+const applyPreset = (preset: any) => {
+  capColor.value = preset.cap
+  shirtColor.value = preset.shirt
+  pantsColor.value = preset.pants
+  selectedPresetName.value = preset.name
+}
+
 // Game HUD reference
 const gameRef = ref<any>(null)
 const hud = ref({
@@ -88,6 +110,21 @@ onMounted(() => {
   if (savedName) {
     playerName.value = savedName
   }
+  
+  // Load saved costume config
+  const savedConfig = localStorage.getItem('progress_run_character_config')
+  if (savedConfig) {
+    try {
+      const parsed = JSON.parse(savedConfig)
+      capColor.value = parsed.cap || '#a855f7'
+      shirtColor.value = parsed.shirt || '#06b6d4'
+      pantsColor.value = parsed.pants || '#334155'
+      selectedPresetName.value = parsed.preset || 'Custom'
+    } catch (e) {
+      // ignore
+    }
+  }
+
   fetchTop3()
 })
 
@@ -106,6 +143,14 @@ const handleStartGame = () => {
 
   // Save player name
   localStorage.setItem('progress_run_player_name', playerName.value.trim())
+
+  // Save character colors
+  localStorage.setItem('progress_run_character_config', JSON.stringify({
+    cap: capColor.value,
+    shirt: shirtColor.value,
+    pants: pantsColor.value,
+    preset: selectedPresetName.value
+  }))
   
   // Transition state & sound start
   gameState.value = 'playing'
@@ -214,6 +259,40 @@ const viewLeaderboard = () => {
                 class="w-full bg-slate-950 border border-slate-850 focus:border-purple-500 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-600 focus:outline-none transition-all duration-300 font-retro text-sm uppercase tracking-wider"
               />
               <p v-if="nameInputError" class="text-xs text-red-500 font-semibold">{{ nameInputError }}</p>
+            </div>
+
+            <!-- Character Costume Customization -->
+            <div class="space-y-3 mt-4 pt-4 border-t border-slate-800">
+              <label class="block text-xs font-retro text-cyan-400">CHARACTER COSTUME</label>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-for="preset in presets"
+                  :key="preset.name"
+                  type="button"
+                  @click="applyPreset(preset)"
+                  class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[9px] font-retro transition-all duration-200 cursor-pointer"
+                  :class="selectedPresetName === preset.name ? 'border-purple-500 bg-purple-950/40 text-purple-200 shadow-sm shadow-purple-500/20' : 'border-slate-850 bg-slate-950 text-slate-400 hover:border-slate-700'"
+                >
+                  <span class="w-2.5 h-2.5 rounded-full border border-black/40" :style="{ backgroundColor: preset.shirt }"></span>
+                  {{ preset.name }}
+                </button>
+              </div>
+
+              <!-- Individual Color Pickers -->
+              <div class="grid grid-cols-3 gap-2 mt-2">
+                <div class="flex flex-col gap-1 items-center bg-slate-950 p-2 rounded-xl border border-slate-850">
+                  <span class="text-[9px] text-slate-500 font-retro">CAP</span>
+                  <input type="color" v-model="capColor" class="w-8 h-8 rounded cursor-pointer border-none bg-transparent" @change="selectedPresetName = 'Custom'" />
+                </div>
+                <div class="flex flex-col gap-1 items-center bg-slate-950 p-2 rounded-xl border border-slate-850">
+                  <span class="text-[9px] text-slate-500 font-retro">SHIRT</span>
+                  <input type="color" v-model="shirtColor" class="w-8 h-8 rounded cursor-pointer border-none bg-transparent" @change="selectedPresetName = 'Custom'" />
+                </div>
+                <div class="flex flex-col gap-1 items-center bg-slate-950 p-2 rounded-xl border border-slate-850">
+                  <span class="text-[9px] text-slate-500 font-retro">PANTS</span>
+                  <input type="color" v-model="pantsColor" class="w-8 h-8 rounded cursor-pointer border-none bg-transparent" @change="selectedPresetName = 'Custom'" />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -361,6 +440,9 @@ const viewLeaderboard = () => {
       <GameCanvas
         ref="gameRef"
         :playerName="playerName"
+        :capColor="capColor"
+        :shirtColor="shirtColor"
+        :pantsColor="pantsColor"
         @update-hud="onUpdateHud"
         @game-over="onGameOver"
       />

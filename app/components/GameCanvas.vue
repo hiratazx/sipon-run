@@ -2,9 +2,25 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useAudio } from '../composables/useAudio'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   playerName: string
-}>()
+  capColor?: string
+  shirtColor?: string
+  pantsColor?: string
+}>(), {
+  capColor: '#a855f7',
+  shirtColor: '#06b6d4',
+  pantsColor: '#334155'
+})
+
+const darkenColor = (hex: string, percent: number): string => {
+  const num = parseInt(hex.replace("#", ""), 16)
+  const amt = Math.round(2.55 * percent)
+  const R = Math.max(0, (num >> 16) - amt)
+  const G = Math.max(0, ((num >> 8) & 0x00ff) - amt)
+  const B = Math.max(0, (num & 0x0000ff) - amt)
+  return "#" + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1)
+}
 
 const emit = defineEmits<{
   (e: 'game-over', stats: { score: number; time: number; coins: number; kills: number; completed: boolean }): void
@@ -23,7 +39,9 @@ onMounted(async () => {
   // We draw pixel art on HTML Canvas at runtime and load them as Phaser textures!
   const generateTextures = (scene: Phaser.Scene) => {
     const createTexture = (key: string, width: number, height: number, drawFn: (ctx: CanvasRenderingContext2D) => void) => {
-      if (scene.textures.exists(key)) return
+      if (scene.textures.exists(key)) {
+        scene.textures.remove(key)
+      }
       const canvas = document.createElement('canvas')
       canvas.width = width
       canvas.height = height
@@ -38,10 +56,16 @@ onMounted(async () => {
     // We create frames: stand, walk1, walk2, jump, hit
     const drawPlayer = (ctx: CanvasRenderingContext2D, frame: string) => {
       ctx.imageSmoothingEnabled = false
+      
+      const cap = props.capColor
+      const visor = darkenColor(props.capColor, 20)
+      const shirt = props.shirtColor
+      const pants = props.pantsColor
+
       // Hair (Retro Brown Cap)
-      ctx.fillStyle = '#a855f7' // Purple cap
+      ctx.fillStyle = cap
       ctx.fillRect(8, 2, 16, 6)
-      ctx.fillStyle = '#7e22ce' // Visor
+      ctx.fillStyle = visor
       ctx.fillRect(20, 5, 6, 2)
       
       // Face
@@ -51,7 +75,7 @@ onMounted(async () => {
       ctx.fillRect(16, 10, 2, 2)
       
       // Shirt / Torso
-      ctx.fillStyle = '#06b6d4' // Cyan hoodie
+      ctx.fillStyle = shirt
       ctx.fillRect(6, 16, 18, 10)
       
       // Backpack
@@ -59,7 +83,7 @@ onMounted(async () => {
       ctx.fillRect(3, 15, 4, 8)
 
       // Legs / Pants
-      ctx.fillStyle = '#334155' // Dark blue pants
+      ctx.fillStyle = pants
       if (frame === 'walk1') {
         ctx.fillRect(6, 26, 4, 6)
         ctx.fillRect(16, 26, 4, 4) // leg up

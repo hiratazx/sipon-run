@@ -15,7 +15,7 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      title: 'Progress Run: Survive the Semester',
+      title: 'SYPON RUN: System Points and Onward Navigation',
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover' },

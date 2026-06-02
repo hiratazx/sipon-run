@@ -188,10 +188,10 @@ const viewLeaderboard = () => {
       <!-- Title Section -->
       <div class="text-center relative select-none">
         <h1 class="text-4xl md:text-6xl font-retro tracking-wider text-purple-400 text-glow-purple mb-3">
-          PROGRESS RUN
+          SYPON ADVENTURE
         </h1>
         <p class="text-xs md:text-sm font-retro text-cyan-400 text-glow-cyan tracking-widest uppercase">
-          Survive The Semester
+          System Points and Onward Navigation
         </p>
         <div class="mt-2 text-xs text-slate-400">UKM PROGRESS — Stand Kampus Edition</div>
       </div>

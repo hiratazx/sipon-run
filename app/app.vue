@@ -10,7 +10,7 @@
       <!-- Footer Copyright -->
       <footer class="w-full text-center py-4 bg-slate-950/80 border-t border-slate-900/60 text-slate-500 text-xs backdrop-blur-sm z-30 select-none">
         <p class="tracking-wide">
-          © 2026 <span class="text-purple-400 font-semibold font-retro text-[10px]">PROGRESS RUN</span> — Survive The Semester. Built for Stand Kampus.
+          © 2026 <span class="text-purple-400 font-semibold font-retro text-[10px]">RUNFINITY</span> — Running With Infinity. Built for Stand Kampus.
         </p>
       </footer>
     </div>

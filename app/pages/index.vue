@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAudio } from '../composables/useAudio'
+import { useLeaderboard } from '../composables/useLeaderboard'
 import { 
   Trophy, Play, Award, Zap, ShieldAlert, Magnet, 
   ArrowRight, ShieldCheck, RefreshCw, Volume2, Heart, Award as IconAward
@@ -42,41 +43,14 @@ const gameResults = ref({
   error: ''
 })
 
-// Cryptographic token generator for Anti-Cheat
-async function generateHmacToken(name: string, score: number, time: number, coins: number, kills: number): Promise<string> {
-  const salt = 'progress-run-exhibition-secret-salt-2026'
-  const rawPayload = `${name.trim()}:${score}:${time}:${coins}:${kills}`
-  
-  const encoder = new TextEncoder()
-  const keyData = encoder.encode(salt)
-  const messageData = encoder.encode(rawPayload)
-  
-  const cryptoKey = await window.crypto.subtle.importKey(
-    'raw',
-    keyData,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  )
-  
-  const signature = await window.crypto.subtle.sign(
-    'HMAC',
-    cryptoKey,
-    messageData
-  )
-  
-  return Array.from(new Uint8Array(signature))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
-}
+const { getLeaderboard, saveScore } = useLeaderboard()
 
 const fetchTop3 = async () => {
   loadingLeaderboard.value = true
   try {
-    const res = await $fetch<any>('/api/leaderboard?limit=3')
-    if (res && res.success) {
-      top3.value = res.data
-    }
+    // Artificial small delay for polished feel
+    await new Promise(resolve => setTimeout(resolve, 150))
+    top3.value = getLeaderboard(3)
   } catch (err) {
     console.error('Failed to load top 3 leaderboard:', err)
   } finally {
@@ -134,34 +108,23 @@ const onGameOver = async (stats: { score: number; time: number; coins: number; k
     error: ''
   }
 
-  // Automatically submit score to database
+  // Automatically submit score to localStorage
   try {
-    const token = await generateHmacToken(
-      playerName.value,
-      stats.score,
-      stats.time,
-      stats.coins,
-      stats.kills
-    )
+    // Artificial delay for high-premium gaming feel
+    await new Promise(resolve => setTimeout(resolve, 400))
 
-    const res = await $fetch<any>('/api/score', {
-      method: 'POST',
-      body: {
-        name: playerName.value.trim(),
-        score: stats.score,
-        time: stats.time,
-        coins: stats.coins,
-        kills: stats.kills,
-        token
-      }
+    const { record, rank } = saveScore({
+      name: playerName.value.trim(),
+      score: stats.score,
+      time: stats.time,
+      coins: stats.coins,
+      kills: stats.kills
     })
 
-    if (res && res.success) {
-      gameResults.value.rank = res.data.rank
-    }
+    gameResults.value.rank = rank
   } catch (err: any) {
     console.error('Failed to submit score:', err)
-    gameResults.value.error = err.statusMessage || 'Validation failed. Cheating detected?'
+    gameResults.value.error = err.message || 'Failed to save score.'
   } finally {
     gameResults.value.submitting = false
     fetchTop3() // Refresh top 3
@@ -188,10 +151,10 @@ const viewLeaderboard = () => {
       <!-- Title Section -->
       <div class="text-center relative select-none">
         <h1 class="text-4xl md:text-6xl font-retro tracking-wider text-purple-400 text-glow-purple mb-3">
-          SYPON ADVENTURE
+           RUNFINITY 2026
         </h1>
         <p class="text-xs md:text-sm font-retro text-cyan-400 text-glow-cyan tracking-widest uppercase">
-          System Points and Onward Navigation
+          RUNNING WITH INFINITY
         </p>
         <div class="mt-2 text-xs text-slate-400">UKM PROGRESS — Stand Kampus Edition</div>
       </div>

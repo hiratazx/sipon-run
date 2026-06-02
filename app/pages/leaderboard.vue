@@ -2,8 +2,10 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Trophy, ArrowLeft, Calendar, Award, RefreshCw, Star, Zap } from 'lucide-vue-next'
+import { useLeaderboard } from '../composables/useLeaderboard'
 
 const router = useRouter()
+const { getLeaderboard, getLeaderboardToday } = useLeaderboard()
 
 // Tab state: 'today' | 'all'
 const activeTab = ref<'today' | 'all'>('today')
@@ -13,10 +15,12 @@ const loading = ref(false)
 const fetchLeaderboard = async () => {
   loading.value = true
   try {
-    const endpoint = activeTab.value === 'today' ? '/api/leaderboard/today' : '/api/leaderboard'
-    const res = await $fetch<any>(endpoint)
-    if (res && res.success) {
-      scores.value = res.data
+    // Artificial small delay to keep the loading animation visual and smooth (premium feel)
+    await new Promise(resolve => setTimeout(resolve, 200))
+    if (activeTab.value === 'today') {
+      scores.value = getLeaderboardToday()
+    } else {
+      scores.value = getLeaderboard()
     }
   } catch (err) {
     console.error('Failed to fetch leaderboard data:', err)

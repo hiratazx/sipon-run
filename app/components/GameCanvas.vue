@@ -2,25 +2,10 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useAudio } from '../composables/useAudio'
 
-const props = withDefaults(defineProps<{
+// Character appearance is fixed to the PROGRESS uniform — no customization props.
+const props = defineProps<{
   playerName: string
-  capColor?: string
-  shirtColor?: string
-  pantsColor?: string
-}>(), {
-  capColor: '#a855f7',
-  shirtColor: '#06b6d4',
-  pantsColor: '#334155'
-})
-
-const darkenColor = (hex: string, percent: number): string => {
-  const num = parseInt(hex.replace("#", ""), 16)
-  const amt = Math.round(2.55 * percent)
-  const R = Math.max(0, (num >> 16) - amt)
-  const G = Math.max(0, ((num >> 8) & 0x00ff) - amt)
-  const B = Math.max(0, (num & 0x0000ff) - amt)
-  return "#" + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1)
-}
+}>()
 
 const emit = defineEmits<{
   (e: 'game-over', stats: { score: number; time: number; coins: number; kills: number; completed: boolean }): void
@@ -30,6 +15,23 @@ const emit = defineEmits<{
 const phaserContainer = ref<HTMLDivElement | null>(null)
 let gameInstance: any = null
 const { playSfx } = useAudio()
+
+// --- PROGRESS UNIFORM COLOUR PALETTE (fixed) ---
+const C = {
+  black:    '#0d0d0d',  // main shirt body
+  teal:     '#0d9488',  // collar, epaulettes, button strip, cuffs, lower diagonal
+  tealDark: '#0a7568',  // teal shadow
+  skin:     '#f5cba7',  // face
+  skinSh:   '#e0a87a',  // face shadow
+  hair:     '#1a1a1a',  // dark hair under cap
+  pants:    '#1e293b',  // dark navy trousers
+  pantsSh:  '#0f172a',  // trouser shadow
+  shoes:    '#111827',  // shoes
+  redFlag:  '#dc2626',  // Indonesian flag – red
+  white:    '#f8fafc',  // flag white / logo text
+  logo:     '#e2e8f0',  // PROGRESS badge
+  gold:     '#fbbf24',  // small logo accent
+}
 
 onMounted(async () => {
   // Dynamically import Phaser to bypass Nuxt SSR checks
@@ -52,64 +54,149 @@ onMounted(async () => {
       }
     }
 
-    // 1. Student Player Texture (32x32)
-    // We create frames: stand, walk1, walk2, jump, hit
+    // 1. PROGRESS Uniform Player Texture (32x32) — FIXED design, no customisation
+    // Frames: stand, walk1, walk2, jump, hit
     const drawPlayer = (ctx: CanvasRenderingContext2D, frame: string) => {
       ctx.imageSmoothingEnabled = false
-      
-      const cap = props.capColor
-      const visor = darkenColor(props.capColor, 20)
-      const shirt = props.shirtColor
-      const pants = props.pantsColor
 
-      // Hair (Retro Brown Cap)
-      ctx.fillStyle = cap
-      ctx.fillRect(8, 2, 16, 6)
-      ctx.fillStyle = visor
-      ctx.fillRect(20, 5, 6, 2)
-      
-      // Face
-      ctx.fillStyle = '#ffedd5' // Skin tone
-      ctx.fillRect(8, 8, 14, 8)
-      ctx.fillStyle = '#1e293b' // Eyes
-      ctx.fillRect(16, 10, 2, 2)
-      
-      // Shirt / Torso
-      ctx.fillStyle = shirt
-      ctx.fillRect(6, 16, 18, 10)
-      
-      // Backpack
-      ctx.fillStyle = '#f59e0b' // Amber backpack
-      ctx.fillRect(3, 15, 4, 8)
+      // ── HAIR (dark, visible under open collar) ──
+      ctx.fillStyle = C.hair
+      ctx.fillRect(9, 2, 13, 5)   // hair top
+      ctx.fillRect(8, 4, 2, 4)    // hair side left
+      ctx.fillRect(21, 4, 2, 4)   // hair side right
 
-      // Legs / Pants
-      ctx.fillStyle = pants
-      if (frame === 'walk1') {
-        ctx.fillRect(6, 26, 4, 6)
-        ctx.fillRect(16, 26, 4, 4) // leg up
-      } else if (frame === 'walk2') {
-        ctx.fillRect(8, 26, 4, 4)
-        ctx.fillRect(18, 26, 4, 6) // leg up
-      } else if (frame === 'jump') {
-        ctx.fillRect(5, 25, 4, 4)
-        ctx.fillRect(17, 25, 4, 4)
-      } else { // stand / hit
-        ctx.fillRect(7, 26, 4, 6)
-        ctx.fillRect(17, 26, 4, 6)
+      // ── FACE ──
+      ctx.fillStyle = C.skin
+      ctx.fillRect(9, 6, 13, 9)   // face
+      // cheek shadow
+      ctx.fillStyle = C.skinSh
+      ctx.fillRect(9,  13, 2, 2)
+      ctx.fillRect(19, 13, 2, 2)
+      // eyes
+      ctx.fillStyle = '#1a1a1a'
+      ctx.fillRect(11, 9, 2, 2)
+      ctx.fillRect(18, 9, 2, 2)
+      // mouth
+      ctx.fillStyle = '#c47a5a'
+      ctx.fillRect(13, 13, 5, 1)
+
+      // ── TEAL COLLAR (wide spread) ──
+      ctx.fillStyle = C.teal
+      ctx.fillRect(9, 15, 13, 3)  // collar band
+      // V-opening
+      ctx.fillStyle = C.black
+      ctx.fillRect(13, 16, 5, 4)  // V-neck cutout
+
+      // ── BLACK SHIRT BODY ──
+      ctx.fillStyle = C.black
+      ctx.fillRect(6, 17, 19, 11) // torso
+
+      // ── TEAL BUTTON STRIP (center) ──
+      ctx.fillStyle = C.teal
+      ctx.fillRect(14, 17, 3, 11)
+      // small button dots
+      ctx.fillStyle = C.tealDark
+      ctx.fillRect(15, 18, 1, 1)
+      ctx.fillRect(15, 21, 1, 1)
+      ctx.fillRect(15, 24, 1, 1)
+
+      // ── TEAL EPAULETTES (shoulder pads) ──
+      ctx.fillStyle = C.teal
+      ctx.fillRect(5, 17, 3, 2)   // left shoulder
+      ctx.fillRect(23, 17, 3, 2)  // right shoulder
+      ctx.fillStyle = C.tealDark
+      ctx.fillRect(5, 18, 3, 1)
+      ctx.fillRect(23, 18, 3, 1)
+
+      // ── TEAL LOWER DIAGONAL PANEL (bottom of shirt) ──
+      ctx.fillStyle = C.teal
+      ctx.fillRect(6, 25, 5, 3)   // left lower panel
+      ctx.fillRect(20, 25, 5, 3)  // right lower panel
+
+      // ── POCKET FLAPS ──
+      ctx.fillStyle = C.teal
+      ctx.fillRect(8, 20, 4, 1)   // left pocket top
+      ctx.fillRect(19, 20, 4, 1)  // right pocket top
+      ctx.fillStyle = C.tealDark
+      ctx.fillRect(8, 21, 4, 2)
+      ctx.fillRect(19, 21, 4, 2)
+
+      // ── INDONESIAN FLAG (left sleeve, right on sprite facing right) ──
+      ctx.fillStyle = C.redFlag
+      ctx.fillRect(5, 19, 3, 2)   // red half
+      ctx.fillStyle = C.white
+      ctx.fillRect(5, 21, 3, 2)   // white half
+      // thin border
+      ctx.strokeStyle = '#374151'
+      ctx.lineWidth = 0.5
+      ctx.strokeRect(5, 19, 3, 4)
+
+      // ── PROGRESS LOGO BADGE (right chest) ──
+      ctx.fillStyle = C.white
+      ctx.fillRect(20, 22, 3, 3)  // badge background
+      ctx.fillStyle = C.gold
+      ctx.fillRect(21, 23, 1, 1)  // gold dot / flame icon
+
+      // ── TEAL SLEEVE CUFFS ──
+      ctx.fillStyle = C.teal
+      if (frame === 'walk1' || frame === 'walk2') {
+        ctx.fillRect(5, 24, 3, 2)   // left cuff
+        ctx.fillRect(23, 24, 3, 2)  // right cuff
+      } else {
+        ctx.fillRect(5, 25, 3, 2)
+        ctx.fillRect(23, 25, 3, 2)
       }
 
-      // If hit, draw overlay flashing
+      // ── LEGS / TROUSERS (dark navy) ──
+      ctx.fillStyle = C.pants
+      if (frame === 'walk1') {
+        ctx.fillRect(7,  28, 5, 4)   // left leg forward
+        ctx.fillRect(17, 28, 5, 6)   // right leg back
+      } else if (frame === 'walk2') {
+        ctx.fillRect(7,  28, 5, 6)
+        ctx.fillRect(17, 28, 5, 4)
+      } else if (frame === 'jump') {
+        ctx.fillRect(6,  27, 5, 4)   // legs bent
+        ctx.fillRect(20, 27, 5, 4)
+      } else {
+        ctx.fillRect(7,  28, 5, 6)   // stand / hit
+        ctx.fillRect(19, 28, 5, 6)
+      }
+      // trouser crease
+      ctx.fillStyle = C.pantsSh
+      if (frame === 'stand' || frame === 'hit') {
+        ctx.fillRect(11, 28, 1, 6)
+        ctx.fillRect(23, 28, 1, 6)
+      }
+
+      // ── SHOES ──
+      ctx.fillStyle = C.shoes
+      if (frame === 'walk1') {
+        ctx.fillRect(6,  32, 6, 2)   // left
+        ctx.fillRect(17, 34, 6, 2)   // right
+      } else if (frame === 'walk2') {
+        ctx.fillRect(6,  34, 6, 2)
+        ctx.fillRect(17, 32, 6, 2)
+      } else if (frame === 'jump') {
+        ctx.fillRect(5,  31, 6, 2)
+        ctx.fillRect(20, 31, 6, 2)
+      } else {
+        ctx.fillRect(6,  34, 6, 2)
+        ctx.fillRect(18, 34, 6, 2)
+      }
+
+      // ── HIT FLASH OVERLAY ──
       if (frame === 'hit') {
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.6)'
-        ctx.fillRect(0, 0, 32, 32)
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.55)'
+        ctx.fillRect(0, 0, 32, 38)
       }
     }
 
-    createTexture('player_stand', 32, 32, (ctx) => drawPlayer(ctx, 'stand'))
-    createTexture('player_walk1', 32, 32, (ctx) => drawPlayer(ctx, 'walk1'))
-    createTexture('player_walk2', 32, 32, (ctx) => drawPlayer(ctx, 'walk2'))
-    createTexture('player_jump', 32, 32, (ctx) => drawPlayer(ctx, 'jump'))
-    createTexture('player_hit', 32, 32, (ctx) => drawPlayer(ctx, 'hit'))
+    createTexture('player_stand', 32, 38, (ctx) => drawPlayer(ctx, 'stand'))
+    createTexture('player_walk1', 32, 38, (ctx) => drawPlayer(ctx, 'walk1'))
+    createTexture('player_walk2', 32, 38, (ctx) => drawPlayer(ctx, 'walk2'))
+    createTexture('player_jump',  32, 38, (ctx) => drawPlayer(ctx, 'jump'))
+    createTexture('player_hit',   32, 38, (ctx) => drawPlayer(ctx, 'hit'))
 
     // 2. Coin (Grade A+) (24x24)
     createTexture('coin', 24, 24, (ctx) => {

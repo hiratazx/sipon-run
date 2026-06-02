@@ -13,13 +13,9 @@ export interface ScoreRecord extends ScoreInput {
   createdAt: Date
 }
 
-// In-Memory Database Fallback (useful for quick testing and zero-config run)
-let inMemoryScores: ScoreRecord[] = [
-  { id: 1, name: "DeanListHarry", score: 8500, time: 48, coins: 45, kills: 12, createdAt: new Date() },
-  { id: 2, name: "CaffeineCoder", score: 6200, time: 65, coins: 35, kills: 8, createdAt: new Date() },
-  { id: 3, name: "DeadlineSurv", score: 5100, time: 78, coins: 28, kills: 5, createdAt: new Date() }
-]
-let scoreIdCounter = 4
+// In-Memory Database Fallback (only used if PostgreSQL is unavailable)
+let inMemoryScores: ScoreRecord[] = []
+let scoreIdCounter = 1
 let useInMemory = false
 
 // Helper to determine if we should fall back to memory

@@ -466,6 +466,30 @@ onMounted(async () => {
       ctx.fillStyle = '#ffffff'
       ctx.fillRect(9, 12, 4, 4) // skull eye
     })
+    // 14. Nuclear Bomb (30x40)
+    createTexture('bomb', 30, 40, (ctx) => {
+      ctx.fillStyle = '#475569'
+      ctx.beginPath()
+      ctx.arc(15, 20, 10, 0, Math.PI*2)
+      ctx.fill()
+      ctx.fillRect(10, 10, 10, 10)
+      ctx.fillStyle = '#ef4444'
+      ctx.fillRect(12, 5, 6, 5)
+      ctx.fillStyle = '#eab308'
+      ctx.beginPath()
+      ctx.arc(15, 20, 3, 0, Math.PI*2)
+      ctx.fill()
+    })
+
+    // 15. Tunnel (60x80)
+    createTexture('tunnel', 60, 80, (ctx) => {
+      ctx.fillStyle = '#16a34a'
+      ctx.fillRect(5, 20, 50, 60)
+      ctx.fillStyle = '#15803d'
+      ctx.fillRect(0, 0, 60, 20)
+      ctx.fillStyle = '#000000'
+      ctx.fillRect(10, 0, 40, 10)
+    })
   }
 
   // --- PHASER MAIN GAME SCENE ---
@@ -484,6 +508,7 @@ onMounted(async () => {
     enemies!: Phaser.Physics.Arcade.Group
     spikes!: Phaser.Physics.Arcade.StaticGroup
     finishGate!: Phaser.Types.Physics.Arcade.ImageWithStaticBody
+    tunnelGate!: Phaser.Types.Physics.Arcade.ImageWithStaticBody
     
     // Game stats
     score = 0
@@ -522,7 +547,7 @@ onMounted(async () => {
     }
 
     create() {
-      const sceneWidth = 10000
+      const sceneWidth = 10500
       const sceneHeight = 600
 
       // Set physics bounds
@@ -705,6 +730,23 @@ onMounted(async () => {
       this.finishGate = this.physics.add.staticImage(9800, 500, 'gate')
       this.finishGate.setSize(30, 80)
 
+      // The Real Goal: The Tunnel
+      this.tunnelGate = this.physics.add.staticImage(10200, 530, 'tunnel')
+      this.tunnelGate.setSize(60, 80)
+
+      // Nuclear Bomb Troll
+      const nukeBomb = this.enemies.create(10050, -200, 'bomb')
+      nukeBomb.body.setAllowGravity(false)
+      nukeBomb.body.immovable = true
+
+      const nukeTrigger = this.triggers.create(10050, 400, null).setAlpha(0)
+      nukeTrigger.setSize(10, 400); nukeTrigger.setData('triggered', false)
+      nukeTrigger.setData('onTrigger', () => {
+         nukeBomb.body.setAllowGravity(true)
+         nukeBomb.body.setGravityY(3000) // drops extremely fast!
+         this.floatingText(10050, 400, 'TACTICAL NUKE INCOMING!', '#ef4444')
+      })
+
       // 6. Spawn Student Player
       this.player = this.physics.add.sprite(80, 450, 'player_stand')
       this.player.setCollideWorldBounds(true)
@@ -739,7 +781,13 @@ onMounted(async () => {
       this.physics.add.overlap(this.player, this.fakePowerups, this.handleSpikeCollision, undefined, this) // Fake powerup kills
       this.physics.add.overlap(this.player, this.enemies, this.handleEnemyCollision, undefined, this)
       this.physics.add.overlap(this.player, this.spikes, this.handleSpikeCollision, undefined, this)
-      this.physics.add.overlap(this.player, this.finishGate, this.handleVictory, undefined, this)
+      this.physics.add.overlap(this.player, this.finishGate, () => {
+        if (!this.finishGate.getData('trolled')) {
+          this.finishGate.setData('trolled', true)
+          this.floatingText(9800, 400, 'YOUR PRINCESS IS IN\nANOTHER CASTLE ->', '#ef4444')
+        }
+      }, undefined, this)
+      this.physics.add.overlap(this.player, this.tunnelGate, this.handleVictory, undefined, this)
       
       this.physics.add.overlap(this.player, this.triggers, (p: any, t: any) => {
         if (!t.getData('triggered')) {

@@ -16,6 +16,15 @@ const phaserContainer = ref<HTMLDivElement | null>(null)
 let gameInstance: any = null
 const { playSfx } = useAudio()
 
+const surrenderBtnTop = ref(-100) // hidden initially
+const surrenderBtnLeft = ref(-100)
+const moveSurrenderBtn = () => {
+  if (typeof window !== 'undefined') {
+    surrenderBtnTop.value = Math.floor(Math.random() * (window.innerHeight - 60)) + 10
+    surrenderBtnLeft.value = Math.floor(Math.random() * (window.innerWidth - 120)) + 10
+  }
+}
+
 // --- PROGRESS UNIFORM COLOUR PALETTE (fixed) ---
 const C = {
   black:    '#0d0d0d',  // main shirt body
@@ -34,6 +43,11 @@ const C = {
 }
 
 onMounted(async () => {
+  if (typeof window !== 'undefined') {
+    surrenderBtnTop.value = 20
+    surrenderBtnLeft.value = window.innerWidth / 2 - 50
+  }
+
   // Dynamically import Phaser to bypass Nuxt SSR checks
   const Phaser = await import('phaser')
 
@@ -426,6 +440,32 @@ onMounted(async () => {
       ctx.strokeRect(0, 0, 128, 20)
     })
 
+    // 12. Kaizo Block (Troll Face) (128x20)
+    createTexture('kaizo_block', 128, 20, (ctx) => {
+      ctx.fillStyle = '#ef4444' // Red Troll Block
+      ctx.fillRect(0, 0, 128, 20)
+      ctx.strokeStyle = '#991b1b'
+      ctx.lineWidth = 2
+      ctx.strokeRect(0, 0, 128, 20)
+      ctx.fillStyle = '#ffffff'
+      ctx.font = 'bold 12px Arial'
+      ctx.fillText('TROLL', 45, 14)
+    })
+
+    // 13. Fake Powerup (Poison Coffee) (24x24)
+    createTexture('p_fake', 24, 24, (ctx) => {
+      ctx.fillStyle = '#9333ea' // Purple poison cup
+      ctx.fillRect(4, 8, 14, 12)
+      ctx.strokeStyle = '#9333ea'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc(17, 14, 4, -Math.PI/2, Math.PI/2)
+      ctx.stroke()
+      ctx.fillStyle = '#22c55e' // green toxic sludge lid
+      ctx.fillRect(3, 5, 16, 3)
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(9, 12, 4, 4) // skull eye
+    })
     // 14. Nuclear Bomb (30x40)
     createTexture('bomb', 30, 40, (ctx) => {
       ctx.fillStyle = '#475569'
@@ -459,22 +499,29 @@ onMounted(async () => {
     wasd!: any
     platforms!: Phaser.Physics.Arcade.StaticGroup
     movingPlatforms!: Phaser.Physics.Arcade.Group
+    kaizoBlocks!: Phaser.Physics.Arcade.StaticGroup
+    triggers!: Phaser.Physics.Arcade.StaticGroup
     coins!: Phaser.Physics.Arcade.StaticGroup
     gems!: Phaser.Physics.Arcade.StaticGroup
     powerups!: Phaser.Physics.Arcade.Group
+    fakePowerups!: Phaser.Physics.Arcade.StaticGroup
     enemies!: Phaser.Physics.Arcade.Group
     spikes!: Phaser.Physics.Arcade.StaticGroup
     finishGate!: Phaser.Types.Physics.Arcade.ImageWithStaticBody
     tunnelGate!: Phaser.Types.Physics.Arcade.ImageWithStaticBody
-    nuke: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody | null = null
     
     // Game stats
     score = 0
     coinsCollected = 0
     kills = 0
-    hearts = 3
-    timeLeft = 120 // 120 seconds level time
+    hearts = 9999
+    deathCount = 0
+    timeLeft = 9999 // Removed timer pressure
     timerEvent!: Phaser.Time.TimerEvent
+    
+    // Checkpoints
+    spawnX = 80
+    spawnY = 400
     
     // Invulnerability & Powerup states
     isInvulnerable = false
@@ -500,11 +547,12 @@ onMounted(async () => {
     }
 
     create() {
-      const sceneWidth = 3600
+      const sceneWidth = 10500
       const sceneHeight = 600
 
       // Set physics bounds
       this.physics.world.setBounds(0, 0, sceneWidth, sceneHeight)
+      this.physics.world.setBoundsCollision(true, true, true, false)
       this.cameras.main.setBounds(0, 0, sceneWidth, sceneHeight)
 
       // Background decorative retro grids (programmatically drawn)
@@ -528,10 +576,7 @@ onMounted(async () => {
       if (!this.anims.exists('player_walk')) {
         this.anims.create({
           key: 'player_walk',
-          frames: [
-            { key: 'player_walk1' },
-            { key: 'player_walk2' }
-          ],
+          frames: [{ key: 'player_walk1' }, { key: 'player_walk2' }],
           frameRate: 8,
           repeat: -1
         })
@@ -539,10 +584,7 @@ onMounted(async () => {
       if (!this.anims.exists('bug_walk')) {
         this.anims.create({
           key: 'bug_walk',
-          frames: [
-            { key: 'bug_walk1' },
-            { key: 'bug_walk2' }
-          ],
+          frames: [{ key: 'bug_walk1' }, { key: 'bug_walk2' }],
           frameRate: 6,
           repeat: -1
         })
@@ -550,10 +592,7 @@ onMounted(async () => {
       if (!this.anims.exists('exam_fly')) {
         this.anims.create({
           key: 'exam_fly',
-          frames: [
-            { key: 'exam_wing1' },
-            { key: 'exam_wing2' }
-          ],
+          frames: [{ key: 'exam_wing1' }, { key: 'exam_wing2' }],
           frameRate: 8,
           repeat: -1
         })
@@ -561,164 +600,152 @@ onMounted(async () => {
 
       // 2. Initialize Groups
       this.platforms = this.physics.add.staticGroup()
-      this.movingPlatforms = this.physics.add.group({
-        allowGravity: false,
-        immovable: true
-      })
+      this.movingPlatforms = this.physics.add.group({ allowGravity: false, immovable: true })
+      this.kaizoBlocks = this.physics.add.staticGroup()
+      this.triggers = this.physics.add.staticGroup()
       this.coins = this.physics.add.staticGroup()
       this.gems = this.physics.add.staticGroup()
-      this.powerups = this.physics.add.group({
-        allowGravity: false,
-        immovable: true
-      })
+      this.powerups = this.physics.add.group({ allowGravity: false, immovable: true })
+      this.fakePowerups = this.physics.add.staticGroup()
       this.enemies = this.physics.add.group()
       this.spikes = this.physics.add.staticGroup()
 
-      // 3. Level Procedural Placement Grid
-      // We divide the 3600px width into horizontal segments.
-      // Floor is at height 540px.
-      
-      // Ground Platforms
+      // 3. Level Procedural Placement Grid (Troll layout)
       for (let x = 0; x < sceneWidth; x += 128) {
-        // Pit falls at 800-950, 1600-1750, 2400-2550
-        if ((x >= 800 && x < 960) || (x >= 1700 && x < 1900) || (x >= 2600 && x < 2800)) {
+        // TROLL PITS (Very frequent)
+        if ((x >= 800 && x < 1200) || (x >= 1800 && x < 2400) || (x >= 3000 && x < 3600) || 
+            (x >= 4200 && x < 4800) || (x >= 5400 && x < 6000) || (x >= 6600 && x < 7200) || 
+            (x >= 7800 && x < 8400) || (x >= 9000 && x < 9400)) {
           continue
         }
         this.platforms.create(x + 64, 570, 'floor_block')
       }
 
-      // Floating Platforms & Obstacles
       const addPlatform = (x: number, y: number, w: number, h: number = 20) => {
         const plat = this.platforms.create(x + w / 2, y + h / 2, 'platform_block') as Phaser.Physics.Arcade.Sprite
-        plat.setDisplaySize(w, h)
-        plat.refreshBody()
+        plat.setDisplaySize(w, h); plat.refreshBody(); return plat
       }
 
-      // Segment 1 (x: 0 - 800)
+      // Gauntlet 1
       addPlatform(200, 440, 100)
-      addPlatform(350, 360, 120)
-      addPlatform(520, 280, 100)
-      addPlatform(680, 380, 80)
+      this.kaizoBlocks.create(350, 360, 'kaizo_block').setAlpha(0) // Troll block 1
+      addPlatform(520, 380, 100)
+      this.kaizoBlocks.create(750, 420, 'kaizo_block').setAlpha(0) // Blocks pit jump
       
-      // Coins in Segment 1
-      this.coins.create(250, 400, 'coin')
-      this.coins.create(410, 320, 'coin')
-      this.coins.create(570, 240, 'coin')
+      const mp1 = this.movingPlatforms.create(1000, 460, 'moving_platform_block') as any
+      mp1.setDisplaySize(100, 20); mp1.setData('startX', 800); mp1.setData('endX', 1200); mp1.setData('speed', 2); mp1.body.setFriction(1, 0)
+      this.spikes.create(1000, 440, 'spikes') // Spike on moving platform!
 
-      // Segment 2 (x: 800 - 1700) (Pit jump section)
-      // Moving Platform over the first pit
-      const mp1 = this.movingPlatforms.create(880, 460, 'moving_platform_block') as any
-      mp1.setDisplaySize(100, 20)
-      mp1.setData('startX', 800)
-      mp1.setData('endX', 960)
-      mp1.setData('speed', 1.5)
-      mp1.body.setFriction(1, 0)
-      
-      addPlatform(1050, 400, 140)
-      addPlatform(1250, 320, 120)
-      addPlatform(1450, 420, 100)
-      
-      // Coins/Gems in Segment 2
-      this.coins.create(1120, 360, 'coin')
-      this.coins.create(1310, 280, 'coin')
-      this.coins.create(1500, 380, 'coin')
-      this.gems.create(1310, 220, 'gem') // Diploma
+      // Gauntlet 2
+      addPlatform(1400, 400, 140)
+      this.fakePowerups.create(1450, 370, 'p_fake').setData('type', 'poison')
+      this.coins.create(1500, 280, 'coin')
+      this.kaizoBlocks.create(1500, 340, 'kaizo_block').setAlpha(0) // Under the coin
 
-      // Spikes in Segment 2
-      this.spikes.create(1120, 532, 'spikes')
+      addPlatform(1600, 320, 120)
+      this.spikes.create(1650, 300, 'spikes') // Hidden spike on platform
 
-      // Segment 3 (x: 1700 - 2600)
-      // Moving platform vertical
-      const mp2 = this.movingPlatforms.create(1800, 420, 'moving_platform_block') as any
-      mp2.setDisplaySize(80, 20)
-      mp2.setData('startY', 350)
-      mp2.setData('endY', 500)
-      mp2.setData('direction', 1)
-      mp2.setData('speed', 1.2)
-      
-      addPlatform(1950, 320, 160)
-      // Hidden block high up
-      addPlatform(2150, 200, 60)
-      addPlatform(2250, 320, 120)
-      addPlatform(2420, 400, 100)
+      // Trigger zone for dropping enemies
+      const trigger1 = this.triggers.create(1400, 300, null)
+      trigger1.setSize(20, 400); trigger1.setData('triggered', false)
+      trigger1.setData('onTrigger', () => {
+         const enemy = this.enemies.create(1500, 50, 'bug_walk1')
+         enemy.body.setGravityY(1000); enemy.setData('type', 'walker'); enemy.setData('speed', 150)
+         enemy.setData('minX', 1400); enemy.setData('maxX', 1800); enemy.play('bug_walk')
+      })
 
-      this.coins.create(2030, 280, 'coin')
-      this.coins.create(2180, 160, 'coin') // hidden coin
-      this.coins.create(2310, 280, 'coin')
-      this.gems.create(2180, 130, 'gem') // hidden diploma
+      // Checkpoints immediately after passing the voids
+      const checkpointX = [1300, 2500, 3700, 4900, 6100, 7300, 8500, 9500]
+      checkpointX.forEach(cx => {
+        const cp = this.triggers.create(cx, 450, null).setAlpha(0)
+        cp.setSize(20, 400); cp.setData('triggered', false)
+        cp.setData('onTrigger', () => {
+           this.spawnX = cx; this.spawnY = 400
+           this.floatingText(cx, 400, 'CHECKPOINT!', '#fbbf24')
+        })
+      })
 
-      this.spikes.create(2030, 532, 'spikes')
-      this.spikes.create(2310, 532, 'spikes')
+      // Anomaly 1: The Chasing Spike
+      const chaseSpike = this.enemies.create(2200, 532, 'spikes')
+      chaseSpike.body.setAllowGravity(false)
+      chaseSpike.body.immovable = true
+      const chaseTrigger = this.triggers.create(2000, 400, null).setAlpha(0)
+      chaseTrigger.setSize(20, 400); chaseTrigger.setData('triggered', false)
+      chaseTrigger.setData('onTrigger', () => {
+         this.tweens.add({
+           targets: chaseSpike, y: 450, duration: 150,
+           onComplete: () => { chaseSpike.body.velocity.x = -350 } // shoot left at player!
+         })
+      })
 
-      // Segment 4 (x: 2600 - 3600)
-      // Moving horizontal platform
-      const mp3 = this.movingPlatforms.create(2700, 420, 'moving_platform_block') as any
-      mp3.setDisplaySize(90, 20)
-      mp3.setData('startX', 2620)
-      mp3.setData('endX', 2780)
-      mp3.setData('speed', 1.8)
+      // Anomaly 2: The Falling Platform
+      const fallPlat = this.platforms.create(4000, 350, 'platform_block') as any
+      fallPlat.setDisplaySize(120, 20); fallPlat.refreshBody()
+      const fallTrigger = this.triggers.create(4000, 330, null).setAlpha(0)
+      fallTrigger.setSize(120, 40); fallTrigger.setData('triggered', false)
+      fallTrigger.setData('onTrigger', () => {
+         this.tweens.add({
+           targets: fallPlat, y: 800, duration: 800, ease: 'Power2',
+           onUpdate: () => fallPlat.refreshBody()
+         })
+      })
 
-      addPlatform(2880, 380, 120)
-      addPlatform(3050, 280, 140)
-      addPlatform(3250, 400, 120)
+      // Anomaly 3: The Fake Goal
+      const fakeGate = this.enemies.create(5000, 500, 'gate')
+      fakeGate.body.setAllowGravity(false)
+      fakeGate.setSize(30, 80)
+      const gateTrigger = this.triggers.create(4850, 400, null).setAlpha(0)
+      gateTrigger.setSize(20, 400); gateTrigger.setData('triggered', false)
+      gateTrigger.setData('onTrigger', () => {
+         fakeGate.body.velocity.x = -450 // gate charges at the player
+         fakeGate.body.velocity.y = -200 // and jumps!
+         this.floatingText(5000, 400, 'JUST KIDDING!', '#ef4444')
+      })
 
-      this.coins.create(2940, 340, 'coin')
-      this.coins.create(3120, 240, 'coin')
-      this.coins.create(3310, 360, 'coin')
 
-      // Power-up locations
-      // Shield (Coffee)
-      this.powerups.create(600, 510, 'p_shield').setData('type', 'shield')
-      // Speed Boost
-      this.powerups.create(1450, 280, 'p_speed').setData('type', 'speed')
-      // Magnet
-      this.powerups.create(2250, 280, 'p_magnet').setData('type', 'magnet')
 
-      // 4. Create Graduation Gate (Flag)
-      this.finishGate = this.physics.add.staticImage(3450, 500, 'gate')
+      // Procedural Gauntlet for extreme length
+      for(let tx = 2000; tx < 9500; tx += 250) {
+        addPlatform(tx, Phaser.Math.Between(300, 450), 100)
+        if (Math.random() > 0.5) {
+          this.kaizoBlocks.create(tx + 50, Phaser.Math.Between(200, 400), 'kaizo_block').setAlpha(0)
+        }
+        if (Math.random() > 0.6) {
+          this.spikes.create(tx + 20, 532, 'spikes')
+        }
+        if (Math.random() > 0.7) {
+          const t = this.triggers.create(tx - 100, 300, null)
+          t.setSize(20, 400); t.setData('triggered', false)
+          t.setData('onTrigger', () => {
+            const e = this.enemies.create(tx, 0, 'bug_walk1'); e.body.setGravityY(1000); e.setData('type', 'walker')
+            e.setData('speed', 150); e.setData('minX', tx-200); e.setData('maxX', tx+200); e.play('bug_walk')
+          })
+        }
+        if (Math.random() > 0.8) {
+          this.fakePowerups.create(tx + 40, 280, 'p_fake')
+        }
+      }
+
+      // 4. Create Graduation Gate (Flag) at end
+      this.finishGate = this.physics.add.staticImage(9800, 500, 'gate')
       this.finishGate.setSize(30, 80)
-      
+
       // The Real Goal: The Tunnel
-      this.tunnelGate = this.physics.add.staticImage(3550, 530, 'tunnel')
+      this.tunnelGate = this.physics.add.staticImage(10200, 530, 'tunnel')
       this.tunnelGate.setSize(60, 80)
 
-      // 5. Spawn Enemies (Bugs & Exams)
-      const spawnWalker = (x: number, y: number, minX: number, maxX: number) => {
-        const walker = this.enemies.create(x, y, 'bug_walk1')
-        walker.setCollideWorldBounds(true)
-        walker.setData('minX', minX)
-        walker.setData('maxX', maxX)
-        walker.setData('speed', 100)
-        walker.setData('type', 'walker')
-        walker.play('bug_walk')
-        walker.body.setGravityY(600)
-        return walker
-      }
+      // Nuclear Bomb Troll
+      const nukeBomb = this.enemies.create(10050, -200, 'bomb')
+      nukeBomb.body.setAllowGravity(false)
+      nukeBomb.body.immovable = true
 
-      const spawnFlyer = (x: number, y: number, rangeY: number) => {
-        const flyer = this.enemies.create(x, y, 'exam_wing1')
-        flyer.body.setAllowGravity(false)
-        flyer.setData('startY', y)
-        flyer.setData('rangeY', rangeY)
-        flyer.setData('speedX', -80)
-        flyer.setData('type', 'flyer')
-        flyer.play('exam_fly')
-        return flyer
-      }
-
-      // Walkers on ground/platforms
-      spawnWalker(450, 500, 300, 600)
-      spawnWalker(1120, 350, 1050, 1180)
-      spawnWalker(1500, 350, 1450, 1540)
-      spawnWalker(2030, 250, 1960, 2100)
-      spawnWalker(2310, 250, 2260, 2360)
-      spawnWalker(3120, 200, 3060, 3180)
-
-      // Flyers in the air
-      spawnFlyer(1000, 240, 60)
-      spawnFlyer(1600, 200, 80)
-      spawnFlyer(2500, 250, 70)
-      spawnFlyer(2950, 180, 50)
+      const nukeTrigger = this.triggers.create(10050, 400, null).setAlpha(0)
+      nukeTrigger.setSize(10, 400); nukeTrigger.setData('triggered', false)
+      nukeTrigger.setData('onTrigger', () => {
+         nukeBomb.body.setAllowGravity(true)
+         nukeBomb.body.setGravityY(3000) // drops extremely fast!
+         this.floatingText(10050, 400, 'TACTICAL NUKE INCOMING!', '#ef4444')
+      })
 
       // 6. Spawn Student Player
       this.player = this.physics.add.sprite(80, 450, 'player_stand')
@@ -733,25 +760,42 @@ onMounted(async () => {
       this.physics.add.collider(this.enemies, this.platforms)
       this.physics.add.collider(this.enemies, this.movingPlatforms)
 
+      // Kaizo Block special collider logic
+      this.physics.add.collider(this.player, this.kaizoBlocks, undefined, (p: any, b: any) => {
+        if (b.alpha === 0) {
+          // If hit from bottom while jumping up
+          if (p.body.velocity.y < 0 && p.y > b.y + 5) {
+            b.setAlpha(1)
+            playSfx('damage') // Troll sound
+            return true
+          }
+          return false
+        }
+        return true
+      }, this)
+
       // Overlap triggers
       this.physics.add.overlap(this.player, this.coins, this.collectCoin, undefined, this)
       this.physics.add.overlap(this.player, this.gems, this.collectGem, undefined, this)
       this.physics.add.overlap(this.player, this.powerups, this.collectPowerup, undefined, this)
+      this.physics.add.overlap(this.player, this.fakePowerups, this.handleSpikeCollision, undefined, this) // Fake powerup kills
       this.physics.add.overlap(this.player, this.enemies, this.handleEnemyCollision, undefined, this)
       this.physics.add.overlap(this.player, this.spikes, this.handleSpikeCollision, undefined, this)
       this.physics.add.overlap(this.player, this.finishGate, () => {
         if (!this.finishGate.getData('trolled')) {
           this.finishGate.setData('trolled', true)
-          this.player.setData('slowed', true)
-          this.floatingText(3450, 400, 'TACTICAL NUKE!', '#ef4444')
-          
-          this.nuke = this.physics.add.sprite(this.player.x, -100, 'bomb')
-          this.nuke.body.setAllowGravity(false)
-          this.nuke.body.setGravityY(200) // very slow fall
-          this.nuke.setData('tracking', true)
+          this.floatingText(9800, 400, 'YOUR PRINCESS IS IN\nANOTHER CASTLE ->', '#ef4444')
         }
       }, undefined, this)
       this.physics.add.overlap(this.player, this.tunnelGate, this.handleVictory, undefined, this)
+      
+      this.physics.add.overlap(this.player, this.triggers, (p: any, t: any) => {
+        if (!t.getData('triggered')) {
+          t.setData('triggered', true)
+          const fn = t.getData('onTrigger')
+          if (fn) fn()
+        }
+      }, undefined, this)
 
       // 8. Keyboards & Inputs
       this.cursors = this.input.keyboard!.createCursorKeys()
@@ -790,8 +834,7 @@ onMounted(async () => {
 
     update(time: number, delta: number) {
       const onGround = this.player.body.blocked.down || this.player.body.touching.down
-      const slowMult = this.player.getData('slowed') ? 0.3 : 1
-      const runSpeed = (this.activePowerup === 'speed' ? 360 : 240) * slowMult
+      const runSpeed = this.activePowerup === 'speed' ? 360 : 240
 
       if (onGround) {
         this.jumpCount = 0
@@ -826,13 +869,13 @@ onMounted(async () => {
       if (justJumped) {
         if (onGround) {
           // First jump
-          this.player.setVelocityY(-450 * (this.player.getData('slowed') ? 0.7 : 1))
+          this.player.setVelocityY(-450)
           this.jumpCount = 1
           playSfx('jump')
           this.spawnDust()
         } else if (this.jumpCount < this.maxJumps) {
           // Double jump
-          this.player.setVelocityY(-420 * (this.player.getData('slowed') ? 0.7 : 1))
+          this.player.setVelocityY(-420)
           this.jumpCount++
           playSfx('jump')
           this.spawnDust()
@@ -846,29 +889,6 @@ onMounted(async () => {
         (this.game as any).mobileJumpTriggered = false
       }
 
-      // Nuke troll logic
-      if (this.nuke) {
-        if (this.nuke.getData('tracking')) {
-          this.nuke.x += (this.player.x - this.nuke.x) * 0.1
-          this.nuke.y += 2 // Descend slowly
-          
-          if (this.cursors.down.isDown || this.wasd.down.isDown) {
-            this.nuke.setData('tracking', false)
-            this.nuke.body.setAllowGravity(true)
-            this.nuke.body.setGravityY(3000)
-            this.floatingText(this.nuke.x, this.nuke.y, 'TRACKING LOST', '#22c55e')
-          }
-        }
-        
-        if (Phaser.Geom.Intersects.RectangleToRectangle(this.player.getBounds(), this.nuke.getBounds())) {
-          this.takeDamage(true)
-        } else if (this.nuke && this.nuke.y > 600) {
-          this.nuke.destroy()
-          this.nuke = null
-          this.player.setData('slowed', false)
-        }
-      }
-
       // Out of bounds pit check
       if (this.player.y > 600) {
         this.takeDamage(true) // Instant death from pit
@@ -878,6 +898,14 @@ onMounted(async () => {
       this.movingPlatforms.getChildren().forEach((child: any) => {
         if (!child) return
         
+        const isPlayerRiding = (
+          this.player.body.bottom >= child.body.top - 5 &&
+          this.player.body.bottom <= child.body.top + 5 &&
+          this.player.body.right > child.body.left &&
+          this.player.body.left < child.body.right &&
+          this.player.body.velocity.y >= 0
+        )
+
         // Horizontal movement
         if (child.getData('startX') !== undefined) {
           const start = child.getData('startX')
@@ -885,6 +913,10 @@ onMounted(async () => {
           const speed = child.getData('speed')
           
           child.x += speed
+          if (isPlayerRiding) {
+            this.player.x += speed
+          }
+
           if (child.x >= end) {
             child.setData('speed', -Math.abs(speed))
           } else if (child.x <= start) {
@@ -899,6 +931,10 @@ onMounted(async () => {
           const speed = child.getData('speed')
           
           child.y += speed * dir
+          if (isPlayerRiding) {
+            this.player.y += speed * dir
+          }
+
           if (child.y >= end) {
             child.setData('direction', -1)
           } else if (child.y <= start) {
@@ -1063,13 +1099,6 @@ onMounted(async () => {
     takeDamage(instantDeath = false) {
       if (this.isInvulnerable && !instantDeath) return
 
-      if (this.nuke) {
-        this.nuke.destroy()
-        this.nuke = null
-        this.player.setData('slowed', false)
-        this.finishGate.setData('trolled', false)
-      }
-
       // Handle shield power-up absorption
       if (this.activePowerup === 'shield' && !instantDeath) {
         this.activePowerup = null
@@ -1088,47 +1117,26 @@ onMounted(async () => {
         return
       }
 
-      // Normal damage
-      this.hearts = instantDeath ? 0 : this.hearts - 1
+      // Troll damage/death
+      this.deathCount++
+      this.score = Math.max(0, this.score - 500)
       playSfx('damage')
       this.cameras.main.shake(200, 0.02)
 
-      if (this.hearts <= 0) {
-        // Game Over trigger
-        this.timerEvent.destroy()
-        this.player.setVelocity(0, 0)
-        this.player.body.setEnable(false)
-        playSfx('gameover')
-        
-        // Let player fall off screen
-        this.tweens.add({
-          targets: this.player,
-          y: 650,
-          angle: 180,
-          duration: 800,
-          onComplete: () => {
-            emit('game-over', {
-              score: this.score,
-              time: 120 - this.timeLeft,
-              coins: this.coinsCollected,
-              kills: this.kills,
-              completed: false
-            })
-          }
-        })
-      } else {
-        // Temporary invulnerability
-        this.isInvulnerable = true
-        this.player.play('player_hit')
-        
-        // Bounce player back
-        this.player.setVelocity(-150, -250)
-
-        this.time.delayedCall(1000, () => {
-          this.isInvulnerable = false
-          this.player.setTexture('player_stand')
-        })
-      }
+      // Respawn at the checkpoint for true kaizo experience
+      this.player.setVelocity(0, 0)
+      this.player.x = this.spawnX
+      this.player.y = this.spawnY
+      
+      this.isInvulnerable = true
+      this.player.play('player_hit')
+      
+      this.time.delayedCall(1000, () => {
+        this.isInvulnerable = false
+        this.player.setTexture('player_stand')
+      })
+      
+      this.floatingText(this.player.x, this.player.y - 20, 'DEATHS: ' + this.deathCount, '#ef4444')
       this.pushHud()
     }
 
@@ -1319,12 +1327,22 @@ defineExpose({
 </script>
 
 <template>
-  <div class="flex flex-col items-center select-none w-full">
+  <div class="flex flex-col items-center select-none w-full relative">
     <!-- Game Viewport Frame -->
     <div
       ref="phaserContainer"
       class="border-4 border-slate-700 bg-slate-900 shadow-2xl rounded-2xl overflow-hidden max-w-full border-glow-purple"
     ></div>
+
+    <!-- The troll surrender button -->
+    <button
+      class="fixed z-50 bg-red-600 text-white font-bold py-2 px-4 rounded-xl shadow-lg border-2 border-red-800 transition-all duration-100 ease-in-out hover:bg-red-500 active:bg-red-700 font-mono text-sm"
+      :style="{ top: surrenderBtnTop + 'px', left: surrenderBtnLeft + 'px' }"
+      @mouseover="moveSurrenderBtn"
+      @click.prevent="moveSurrenderBtn"
+    >
+      Surrender
+    </button>
   </div>
 </template>
 

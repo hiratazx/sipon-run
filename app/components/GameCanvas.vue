@@ -615,14 +615,17 @@ onMounted(async () => {
          enemy.setData('minX', 1400); enemy.setData('maxX', 1800); enemy.play('bug_walk')
       })
 
-      // Checkpoint 1
-      addPlatform(3000, 400, 150)
-      const cp1 = this.triggers.create(3075, 380, null).setAlpha(0)
-      cp1.setSize(20, 400); cp1.setData('triggered', false)
-      cp1.setData('onTrigger', () => {
-         this.spawnX = 3075; this.spawnY = 350
-         this.floatingText(3075, 350, 'CHECKPOINT!', '#fbbf24')
-      })
+      // Frequent Checkpoints (every 1500px)
+      for (let cx = 1500; cx <= 9000; cx += 1500) {
+        // Only add a platform if we are not at 4500 and 6000 where anomalies are nearby (actually let's just add it, it's fine)
+        addPlatform(cx, 400, 150)
+        const cp = this.triggers.create(cx + 75, 380, null).setAlpha(0)
+        cp.setSize(20, 400); cp.setData('triggered', false)
+        cp.setData('onTrigger', () => {
+           this.spawnX = cx + 75; this.spawnY = 350
+           this.floatingText(cx + 75, 350, 'CHECKPOINT!', '#fbbf24')
+        })
+      }
 
       // Anomaly 1: The Chasing Spike
       const chaseSpike = this.enemies.create(2200, 532, 'spikes')
@@ -661,14 +664,7 @@ onMounted(async () => {
          this.floatingText(5000, 400, 'JUST KIDDING!', '#ef4444')
       })
 
-      // Checkpoint 2
-      addPlatform(6000, 400, 150)
-      const cp2 = this.triggers.create(6075, 380, null).setAlpha(0)
-      cp2.setSize(20, 400); cp2.setData('triggered', false)
-      cp2.setData('onTrigger', () => {
-         this.spawnX = 6075; this.spawnY = 350
-         this.floatingText(6075, 350, 'CHECKPOINT!', '#fbbf24')
-      })
+
 
       // Procedural Gauntlet for extreme length
       for(let tx = 2000; tx < 9500; tx += 400) {

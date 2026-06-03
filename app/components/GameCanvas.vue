@@ -624,6 +624,43 @@ onMounted(async () => {
          this.floatingText(3075, 350, 'CHECKPOINT!', '#fbbf24')
       })
 
+      // Anomaly 1: The Chasing Spike
+      const chaseSpike = this.enemies.create(2200, 532, 'spikes')
+      chaseSpike.body.setAllowGravity(false)
+      chaseSpike.body.immovable = true
+      const chaseTrigger = this.triggers.create(2000, 400, null).setAlpha(0)
+      chaseTrigger.setSize(20, 400); chaseTrigger.setData('triggered', false)
+      chaseTrigger.setData('onTrigger', () => {
+         this.tweens.add({
+           targets: chaseSpike, y: 450, duration: 150,
+           onComplete: () => { chaseSpike.body.velocity.x = -350 } // shoot left at player!
+         })
+      })
+
+      // Anomaly 2: The Falling Platform
+      const fallPlat = this.platforms.create(4000, 350, 'platform_block') as any
+      fallPlat.setDisplaySize(120, 20); fallPlat.refreshBody()
+      const fallTrigger = this.triggers.create(4000, 330, null).setAlpha(0)
+      fallTrigger.setSize(120, 40); fallTrigger.setData('triggered', false)
+      fallTrigger.setData('onTrigger', () => {
+         this.tweens.add({
+           targets: fallPlat, y: 800, duration: 800, ease: 'Power2',
+           onUpdate: () => fallPlat.refreshBody()
+         })
+      })
+
+      // Anomaly 3: The Fake Goal
+      const fakeGate = this.enemies.create(5000, 500, 'gate')
+      fakeGate.body.setAllowGravity(false)
+      fakeGate.setSize(30, 80)
+      const gateTrigger = this.triggers.create(4850, 400, null).setAlpha(0)
+      gateTrigger.setSize(20, 400); gateTrigger.setData('triggered', false)
+      gateTrigger.setData('onTrigger', () => {
+         fakeGate.body.velocity.x = -450 // gate charges at the player
+         fakeGate.body.velocity.y = -200 // and jumps!
+         this.floatingText(5000, 400, 'JUST KIDDING!', '#ef4444')
+      })
+
       // Checkpoint 2
       addPlatform(6000, 400, 150)
       const cp2 = this.triggers.create(6075, 380, null).setAlpha(0)

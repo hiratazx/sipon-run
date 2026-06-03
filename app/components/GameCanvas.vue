@@ -425,6 +425,33 @@ onMounted(async () => {
       ctx.lineWidth = 2
       ctx.strokeRect(0, 0, 128, 20)
     })
+
+    // 12. Kaizo Block (Troll Face) (128x20)
+    createTexture('kaizo_block', 128, 20, (ctx) => {
+      ctx.fillStyle = '#ef4444' // Red Troll Block
+      ctx.fillRect(0, 0, 128, 20)
+      ctx.strokeStyle = '#991b1b'
+      ctx.lineWidth = 2
+      ctx.strokeRect(0, 0, 128, 20)
+      ctx.fillStyle = '#ffffff'
+      ctx.font = 'bold 12px Arial'
+      ctx.fillText('TROLL', 45, 14)
+    })
+
+    // 13. Fake Powerup (Poison Coffee) (24x24)
+    createTexture('p_fake', 24, 24, (ctx) => {
+      ctx.fillStyle = '#9333ea' // Purple poison cup
+      ctx.fillRect(4, 8, 14, 12)
+      ctx.strokeStyle = '#9333ea'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc(17, 14, 4, -Math.PI/2, Math.PI/2)
+      ctx.stroke()
+      ctx.fillStyle = '#22c55e' // green toxic sludge lid
+      ctx.fillRect(3, 5, 16, 3)
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(9, 12, 4, 4) // skull eye
+    })
   }
 
   // --- PHASER MAIN GAME SCENE ---
@@ -434,9 +461,12 @@ onMounted(async () => {
     wasd!: any
     platforms!: Phaser.Physics.Arcade.StaticGroup
     movingPlatforms!: Phaser.Physics.Arcade.Group
+    kaizoBlocks!: Phaser.Physics.Arcade.StaticGroup
+    triggers!: Phaser.Physics.Arcade.StaticGroup
     coins!: Phaser.Physics.Arcade.StaticGroup
     gems!: Phaser.Physics.Arcade.StaticGroup
     powerups!: Phaser.Physics.Arcade.Group
+    fakePowerups!: Phaser.Physics.Arcade.StaticGroup
     enemies!: Phaser.Physics.Arcade.Group
     spikes!: Phaser.Physics.Arcade.StaticGroup
     finishGate!: Phaser.Types.Physics.Arcade.ImageWithStaticBody
@@ -445,8 +475,9 @@ onMounted(async () => {
     score = 0
     coinsCollected = 0
     kills = 0
-    hearts = 3
-    timeLeft = 120 // 120 seconds level time
+    hearts = 9999
+    deathCount = 0
+    timeLeft = 9999 // Removed timer pressure
     timerEvent!: Phaser.Time.TimerEvent
     
     // Invulnerability & Powerup states
@@ -473,7 +504,7 @@ onMounted(async () => {
     }
 
     create() {
-      const sceneWidth = 3600
+      const sceneWidth = 10000
       const sceneHeight = 600
 
       // Set physics bounds
@@ -501,10 +532,7 @@ onMounted(async () => {
       if (!this.anims.exists('player_walk')) {
         this.anims.create({
           key: 'player_walk',
-          frames: [
-            { key: 'player_walk1' },
-            { key: 'player_walk2' }
-          ],
+          frames: [{ key: 'player_walk1' }, { key: 'player_walk2' }],
           frameRate: 8,
           repeat: -1
         })
@@ -512,10 +540,7 @@ onMounted(async () => {
       if (!this.anims.exists('bug_walk')) {
         this.anims.create({
           key: 'bug_walk',
-          frames: [
-            { key: 'bug_walk1' },
-            { key: 'bug_walk2' }
-          ],
+          frames: [{ key: 'bug_walk1' }, { key: 'bug_walk2' }],
           frameRate: 6,
           repeat: -1
         })
@@ -523,10 +548,7 @@ onMounted(async () => {
       if (!this.anims.exists('exam_fly')) {
         this.anims.create({
           key: 'exam_fly',
-          frames: [
-            { key: 'exam_wing1' },
-            { key: 'exam_wing2' }
-          ],
+          frames: [{ key: 'exam_wing1' }, { key: 'exam_wing2' }],
           frameRate: 8,
           repeat: -1
         })
@@ -534,160 +556,85 @@ onMounted(async () => {
 
       // 2. Initialize Groups
       this.platforms = this.physics.add.staticGroup()
-      this.movingPlatforms = this.physics.add.group({
-        allowGravity: false,
-        immovable: true
-      })
+      this.movingPlatforms = this.physics.add.group({ allowGravity: false, immovable: true })
+      this.kaizoBlocks = this.physics.add.staticGroup()
+      this.triggers = this.physics.add.staticGroup()
       this.coins = this.physics.add.staticGroup()
       this.gems = this.physics.add.staticGroup()
-      this.powerups = this.physics.add.group({
-        allowGravity: false,
-        immovable: true
-      })
+      this.powerups = this.physics.add.group({ allowGravity: false, immovable: true })
+      this.fakePowerups = this.physics.add.staticGroup()
       this.enemies = this.physics.add.group()
       this.spikes = this.physics.add.staticGroup()
 
-      // 3. Level Procedural Placement Grid
-      // We divide the 3600px width into horizontal segments.
-      // Floor is at height 540px.
-      
-      // Ground Platforms
+      // 3. Level Procedural Placement Grid (Troll layout)
       for (let x = 0; x < sceneWidth; x += 128) {
-        // Pit falls at 800-950, 1600-1750, 2400-2550
-        if ((x >= 800 && x < 960) || (x >= 1700 && x < 1900) || (x >= 2600 && x < 2800)) {
+        // TROLL PITS (Very frequent)
+        if ((x >= 800 && x < 1200) || (x >= 1800 && x < 2400) || (x >= 3000 && x < 3600) || 
+            (x >= 4200 && x < 4800) || (x >= 5400 && x < 6000) || (x >= 6600 && x < 7200) || 
+            (x >= 7800 && x < 8400) || (x >= 9000 && x < 9400)) {
           continue
         }
         this.platforms.create(x + 64, 570, 'floor_block')
       }
 
-      // Floating Platforms & Obstacles
       const addPlatform = (x: number, y: number, w: number, h: number = 20) => {
         const plat = this.platforms.create(x + w / 2, y + h / 2, 'platform_block') as Phaser.Physics.Arcade.Sprite
-        plat.setDisplaySize(w, h)
-        plat.refreshBody()
+        plat.setDisplaySize(w, h); plat.refreshBody(); return plat
       }
 
-      // Segment 1 (x: 0 - 800)
+      // Gauntlet 1
       addPlatform(200, 440, 100)
-      addPlatform(350, 360, 120)
-      addPlatform(520, 280, 100)
-      addPlatform(680, 380, 80)
+      this.kaizoBlocks.create(350, 360, 'kaizo_block').setAlpha(0) // Troll block 1
+      addPlatform(520, 380, 100)
+      this.kaizoBlocks.create(750, 420, 'kaizo_block').setAlpha(0) // Blocks pit jump
       
-      // Coins in Segment 1
-      this.coins.create(250, 400, 'coin')
-      this.coins.create(410, 320, 'coin')
-      this.coins.create(570, 240, 'coin')
+      const mp1 = this.movingPlatforms.create(1000, 460, 'moving_platform_block') as any
+      mp1.setDisplaySize(100, 20); mp1.setData('startX', 800); mp1.setData('endX', 1200); mp1.setData('speed', 2); mp1.body.setFriction(1, 0)
+      this.spikes.create(1000, 440, 'spikes') // Spike on moving platform!
 
-      // Segment 2 (x: 800 - 1700) (Pit jump section)
-      // Moving Platform over the first pit
-      const mp1 = this.movingPlatforms.create(880, 460, 'moving_platform_block') as any
-      mp1.setDisplaySize(100, 20)
-      mp1.setData('startX', 800)
-      mp1.setData('endX', 960)
-      mp1.setData('speed', 1.5)
-      mp1.body.setFriction(1, 0)
-      
-      addPlatform(1050, 400, 140)
-      addPlatform(1250, 320, 120)
-      addPlatform(1450, 420, 100)
-      
-      // Coins/Gems in Segment 2
-      this.coins.create(1120, 360, 'coin')
-      this.coins.create(1310, 280, 'coin')
-      this.coins.create(1500, 380, 'coin')
-      this.gems.create(1310, 220, 'gem') // Diploma
+      // Gauntlet 2
+      addPlatform(1400, 400, 140)
+      this.fakePowerups.create(1450, 370, 'p_fake').setData('type', 'poison')
+      this.coins.create(1500, 280, 'coin')
+      this.kaizoBlocks.create(1500, 340, 'kaizo_block').setAlpha(0) // Under the coin
 
-      // Spikes in Segment 2
-      this.spikes.create(1120, 532, 'spikes')
+      addPlatform(1600, 320, 120)
+      this.spikes.create(1650, 300, 'spikes') // Hidden spike on platform
 
-      // Segment 3 (x: 1700 - 2600)
-      // Moving platform vertical
-      const mp2 = this.movingPlatforms.create(1800, 420, 'moving_platform_block') as any
-      mp2.setDisplaySize(80, 20)
-      mp2.setData('startY', 350)
-      mp2.setData('endY', 500)
-      mp2.setData('direction', 1)
-      mp2.setData('speed', 1.2)
-      
-      addPlatform(1950, 320, 160)
-      // Hidden block high up
-      addPlatform(2150, 200, 60)
-      addPlatform(2250, 320, 120)
-      addPlatform(2420, 400, 100)
+      // Trigger zone for dropping enemies
+      const trigger1 = this.triggers.create(1400, 300, null)
+      trigger1.setSize(20, 400); trigger1.setData('triggered', false)
+      trigger1.setData('onTrigger', () => {
+         const enemy = this.enemies.create(1500, 50, 'bug_walk1')
+         enemy.body.setGravityY(1000); enemy.setData('type', 'walker'); enemy.setData('speed', 150)
+         enemy.setData('minX', 1400); enemy.setData('maxX', 1800); enemy.play('bug_walk')
+      })
 
-      this.coins.create(2030, 280, 'coin')
-      this.coins.create(2180, 160, 'coin') // hidden coin
-      this.coins.create(2310, 280, 'coin')
-      this.gems.create(2180, 130, 'gem') // hidden diploma
+      // Procedural Gauntlet for extreme length
+      for(let tx = 2000; tx < 9500; tx += 400) {
+        addPlatform(tx, Phaser.Math.Between(300, 450), 100)
+        if (Math.random() > 0.5) {
+          this.kaizoBlocks.create(tx + 50, Phaser.Math.Between(200, 400), 'kaizo_block').setAlpha(0)
+        }
+        if (Math.random() > 0.6) {
+          this.spikes.create(tx + 20, 532, 'spikes')
+        }
+        if (Math.random() > 0.7) {
+          const t = this.triggers.create(tx - 100, 300, null)
+          t.setSize(20, 400); t.setData('triggered', false)
+          t.setData('onTrigger', () => {
+            const e = this.enemies.create(tx, 0, 'bug_walk1'); e.body.setGravityY(1000); e.setData('type', 'walker')
+            e.setData('speed', 150); e.setData('minX', tx-200); e.setData('maxX', tx+200); e.play('bug_walk')
+          })
+        }
+        if (Math.random() > 0.8) {
+          this.fakePowerups.create(tx + 40, 280, 'p_fake')
+        }
+      }
 
-      this.spikes.create(2030, 532, 'spikes')
-      this.spikes.create(2310, 532, 'spikes')
-
-      // Segment 4 (x: 2600 - 3600)
-      // Moving horizontal platform
-      const mp3 = this.movingPlatforms.create(2700, 420, 'moving_platform_block') as any
-      mp3.setDisplaySize(90, 20)
-      mp3.setData('startX', 2620)
-      mp3.setData('endX', 2780)
-      mp3.setData('speed', 1.8)
-
-      addPlatform(2880, 380, 120)
-      addPlatform(3050, 280, 140)
-      addPlatform(3250, 400, 120)
-
-      this.coins.create(2940, 340, 'coin')
-      this.coins.create(3120, 240, 'coin')
-      this.coins.create(3310, 360, 'coin')
-
-      // Power-up locations
-      // Shield (Coffee)
-      this.powerups.create(600, 510, 'p_shield').setData('type', 'shield')
-      // Speed Boost
-      this.powerups.create(1450, 280, 'p_speed').setData('type', 'speed')
-      // Magnet
-      this.powerups.create(2250, 280, 'p_magnet').setData('type', 'magnet')
-
-      // 4. Create Graduation Gate (Flag)
-      this.finishGate = this.physics.add.staticImage(3450, 500, 'gate')
+      // 4. Create Graduation Gate (Flag) at end
+      this.finishGate = this.physics.add.staticImage(9800, 500, 'gate')
       this.finishGate.setSize(30, 80)
-
-      // 5. Spawn Enemies (Bugs & Exams)
-      const spawnWalker = (x: number, y: number, minX: number, maxX: number) => {
-        const walker = this.enemies.create(x, y, 'bug_walk1')
-        walker.setCollideWorldBounds(true)
-        walker.setData('minX', minX)
-        walker.setData('maxX', maxX)
-        walker.setData('speed', 100)
-        walker.setData('type', 'walker')
-        walker.play('bug_walk')
-        walker.body.setGravityY(600)
-        return walker
-      }
-
-      const spawnFlyer = (x: number, y: number, rangeY: number) => {
-        const flyer = this.enemies.create(x, y, 'exam_wing1')
-        flyer.body.setAllowGravity(false)
-        flyer.setData('startY', y)
-        flyer.setData('rangeY', rangeY)
-        flyer.setData('speedX', -80)
-        flyer.setData('type', 'flyer')
-        flyer.play('exam_fly')
-        return flyer
-      }
-
-      // Walkers on ground/platforms
-      spawnWalker(450, 500, 300, 600)
-      spawnWalker(1120, 350, 1050, 1180)
-      spawnWalker(1500, 350, 1450, 1540)
-      spawnWalker(2030, 250, 1960, 2100)
-      spawnWalker(2310, 250, 2260, 2360)
-      spawnWalker(3120, 200, 3060, 3180)
-
-      // Flyers in the air
-      spawnFlyer(1000, 240, 60)
-      spawnFlyer(1600, 200, 80)
-      spawnFlyer(2500, 250, 70)
-      spawnFlyer(2950, 180, 50)
 
       // 6. Spawn Student Player
       this.player = this.physics.add.sprite(80, 450, 'player_stand')
@@ -702,13 +649,36 @@ onMounted(async () => {
       this.physics.add.collider(this.enemies, this.platforms)
       this.physics.add.collider(this.enemies, this.movingPlatforms)
 
+      // Kaizo Block special collider logic
+      this.physics.add.collider(this.player, this.kaizoBlocks, undefined, (p: any, b: any) => {
+        if (b.alpha === 0) {
+          // If hit from bottom while jumping up
+          if (p.body.velocity.y < 0 && p.y > b.y + 5) {
+            b.setAlpha(1)
+            playSfx('damage') // Troll sound
+            return true
+          }
+          return false
+        }
+        return true
+      }, this)
+
       // Overlap triggers
       this.physics.add.overlap(this.player, this.coins, this.collectCoin, undefined, this)
       this.physics.add.overlap(this.player, this.gems, this.collectGem, undefined, this)
       this.physics.add.overlap(this.player, this.powerups, this.collectPowerup, undefined, this)
+      this.physics.add.overlap(this.player, this.fakePowerups, this.handleSpikeCollision, undefined, this) // Fake powerup kills
       this.physics.add.overlap(this.player, this.enemies, this.handleEnemyCollision, undefined, this)
       this.physics.add.overlap(this.player, this.spikes, this.handleSpikeCollision, undefined, this)
       this.physics.add.overlap(this.player, this.finishGate, this.handleVictory, undefined, this)
+      
+      this.physics.add.overlap(this.player, this.triggers, (p: any, t: any) => {
+        if (!t.getData('triggered')) {
+          t.setData('triggered', true)
+          const fn = t.getData('onTrigger')
+          if (fn) fn()
+        }
+      }, undefined, this)
 
       // 8. Keyboards & Inputs
       this.cursors = this.input.keyboard!.createCursorKeys()
@@ -1014,47 +984,26 @@ onMounted(async () => {
         return
       }
 
-      // Normal damage
-      this.hearts = instantDeath ? 0 : this.hearts - 1
+      // Troll damage/death
+      this.deathCount++
+      this.score = Math.max(0, this.score - 500)
       playSfx('damage')
       this.cameras.main.shake(200, 0.02)
 
-      if (this.hearts <= 0) {
-        // Game Over trigger
-        this.timerEvent.destroy()
-        this.player.setVelocity(0, 0)
-        this.player.body.setEnable(false)
-        playSfx('gameover')
-        
-        // Let player fall off screen
-        this.tweens.add({
-          targets: this.player,
-          y: 650,
-          angle: 180,
-          duration: 800,
-          onComplete: () => {
-            emit('game-over', {
-              score: this.score,
-              time: 120 - this.timeLeft,
-              coins: this.coinsCollected,
-              kills: this.kills,
-              completed: false
-            })
-          }
-        })
-      } else {
-        // Temporary invulnerability
-        this.isInvulnerable = true
-        this.player.play('player_hit')
-        
-        // Bounce player back
-        this.player.setVelocity(-150, -250)
-
-        this.time.delayedCall(1000, () => {
-          this.isInvulnerable = false
-          this.player.setTexture('player_stand')
-        })
-      }
+      // Respawn at the beginning of the level for true kaizo experience
+      this.player.setVelocity(0, 0)
+      this.player.x = 80
+      this.player.y = 400
+      
+      this.isInvulnerable = true
+      this.player.play('player_hit')
+      
+      this.time.delayedCall(1000, () => {
+        this.isInvulnerable = false
+        this.player.setTexture('player_stand')
+      })
+      
+      this.floatingText(this.player.x, this.player.y - 20, 'DEATHS: ' + this.deathCount, '#ef4444')
       this.pushHud()
     }
 

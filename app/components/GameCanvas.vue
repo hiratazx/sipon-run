@@ -680,7 +680,7 @@ onMounted(async () => {
 
 
       // Procedural Gauntlet for extreme length
-      for(let tx = 2000; tx < 9500; tx += 400) {
+      for(let tx = 2000; tx < 9500; tx += 250) {
         addPlatform(tx, Phaser.Math.Between(300, 450), 100)
         if (Math.random() > 0.5) {
           this.kaizoBlocks.create(tx + 50, Phaser.Math.Between(200, 400), 'kaizo_block').setAlpha(0)

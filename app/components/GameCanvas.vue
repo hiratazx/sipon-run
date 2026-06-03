@@ -615,17 +615,16 @@ onMounted(async () => {
          enemy.setData('minX', 1400); enemy.setData('maxX', 1800); enemy.play('bug_walk')
       })
 
-      // Frequent Checkpoints (every 1500px)
-      for (let cx = 1500; cx <= 9000; cx += 1500) {
-        // Only add a platform if we are not at 4500 and 6000 where anomalies are nearby (actually let's just add it, it's fine)
-        addPlatform(cx, 400, 150)
-        const cp = this.triggers.create(cx + 75, 380, null).setAlpha(0)
+      // Checkpoints immediately after passing the voids
+      const checkpointX = [1300, 2500, 3700, 4900, 6100, 7300, 8500, 9500]
+      checkpointX.forEach(cx => {
+        const cp = this.triggers.create(cx, 450, null).setAlpha(0)
         cp.setSize(20, 400); cp.setData('triggered', false)
         cp.setData('onTrigger', () => {
-           this.spawnX = cx + 75; this.spawnY = 350
-           this.floatingText(cx + 75, 350, 'CHECKPOINT!', '#fbbf24')
+           this.spawnX = cx; this.spawnY = 400
+           this.floatingText(cx, 400, 'CHECKPOINT!', '#fbbf24')
         })
-      }
+      })
 
       // Anomaly 1: The Chasing Spike
       const chaseSpike = this.enemies.create(2200, 532, 'spikes')

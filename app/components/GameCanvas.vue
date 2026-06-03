@@ -16,6 +16,15 @@ const phaserContainer = ref<HTMLDivElement | null>(null)
 let gameInstance: any = null
 const { playSfx } = useAudio()
 
+const surrenderBtnTop = ref(-100) // hidden initially
+const surrenderBtnLeft = ref(-100)
+const moveSurrenderBtn = () => {
+  if (typeof window !== 'undefined') {
+    surrenderBtnTop.value = Math.floor(Math.random() * (window.innerHeight - 60)) + 10
+    surrenderBtnLeft.value = Math.floor(Math.random() * (window.innerWidth - 120)) + 10
+  }
+}
+
 // --- PROGRESS UNIFORM COLOUR PALETTE (fixed) ---
 const C = {
   black:    '#0d0d0d',  // main shirt body
@@ -34,6 +43,11 @@ const C = {
 }
 
 onMounted(async () => {
+  if (typeof window !== 'undefined') {
+    surrenderBtnTop.value = 20
+    surrenderBtnLeft.value = window.innerWidth / 2 - 50
+  }
+
   // Dynamically import Phaser to bypass Nuxt SSR checks
   const Phaser = await import('phaser')
 
@@ -1265,12 +1279,22 @@ defineExpose({
 </script>
 
 <template>
-  <div class="flex flex-col items-center select-none w-full">
+  <div class="flex flex-col items-center select-none w-full relative">
     <!-- Game Viewport Frame -->
     <div
       ref="phaserContainer"
       class="border-4 border-slate-700 bg-slate-900 shadow-2xl rounded-2xl overflow-hidden max-w-full border-glow-purple"
     ></div>
+
+    <!-- The troll surrender button -->
+    <button
+      class="fixed z-50 bg-red-600 text-white font-bold py-2 px-4 rounded-xl shadow-lg border-2 border-red-800 transition-all duration-100 ease-in-out hover:bg-red-500 active:bg-red-700 font-mono text-sm"
+      :style="{ top: surrenderBtnTop + 'px', left: surrenderBtnLeft + 'px' }"
+      @mouseover="moveSurrenderBtn"
+      @click.prevent="moveSurrenderBtn"
+    >
+      Surrender
+    </button>
   </div>
 </template>
 

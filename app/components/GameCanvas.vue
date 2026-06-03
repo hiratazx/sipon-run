@@ -480,6 +480,10 @@ onMounted(async () => {
     timeLeft = 9999 // Removed timer pressure
     timerEvent!: Phaser.Time.TimerEvent
     
+    // Checkpoints
+    spawnX = 80
+    spawnY = 400
+    
     // Invulnerability & Powerup states
     isInvulnerable = false
     activePowerup: 'shield' | 'speed' | 'magnet' | null = null
@@ -609,6 +613,24 @@ onMounted(async () => {
          const enemy = this.enemies.create(1500, 50, 'bug_walk1')
          enemy.body.setGravityY(1000); enemy.setData('type', 'walker'); enemy.setData('speed', 150)
          enemy.setData('minX', 1400); enemy.setData('maxX', 1800); enemy.play('bug_walk')
+      })
+
+      // Checkpoint 1
+      addPlatform(3000, 400, 150)
+      const cp1 = this.triggers.create(3075, 380, null).setAlpha(0)
+      cp1.setSize(20, 400); cp1.setData('triggered', false)
+      cp1.setData('onTrigger', () => {
+         this.spawnX = 3075; this.spawnY = 350
+         this.floatingText(3075, 350, 'CHECKPOINT!', '#fbbf24')
+      })
+
+      // Checkpoint 2
+      addPlatform(6000, 400, 150)
+      const cp2 = this.triggers.create(6075, 380, null).setAlpha(0)
+      cp2.setSize(20, 400); cp2.setData('triggered', false)
+      cp2.setData('onTrigger', () => {
+         this.spawnX = 6075; this.spawnY = 350
+         this.floatingText(6075, 350, 'CHECKPOINT!', '#fbbf24')
       })
 
       // Procedural Gauntlet for extreme length
@@ -1007,10 +1029,10 @@ onMounted(async () => {
       playSfx('damage')
       this.cameras.main.shake(200, 0.02)
 
-      // Respawn at the beginning of the level for true kaizo experience
+      // Respawn at the checkpoint for true kaizo experience
       this.player.setVelocity(0, 0)
-      this.player.x = 80
-      this.player.y = 400
+      this.player.x = this.spawnX
+      this.player.y = this.spawnY
       
       this.isInvulnerable = true
       this.player.play('player_hit')

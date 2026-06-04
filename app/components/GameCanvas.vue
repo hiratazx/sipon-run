@@ -811,6 +811,15 @@ onMounted(async () => {
       this.movingPlatforms.getChildren().forEach((child: any) => {
         if (!child) return
         
+        const isPlayerRiding = (
+          this.player.body.bottom >= child.body.top - 5 &&
+          this.player.body.bottom <= child.body.top + 5 &&
+          this.player.body.right > child.body.left &&
+          this.player.body.left < child.body.right &&
+          this.player.body.velocity.y >= 0
+        )
+
+
         // Horizontal movement
         if (child.getData('startX') !== undefined) {
           const start = child.getData('startX')
@@ -818,6 +827,10 @@ onMounted(async () => {
           const speed = child.getData('speed')
           
           child.x += speed
+          if (isPlayerRiding) {
+            this.player.x += speed
+          }
+
           if (child.x >= end) {
             child.setData('speed', -Math.abs(speed))
           } else if (child.x <= start) {
@@ -832,6 +845,10 @@ onMounted(async () => {
           const speed = child.getData('speed')
           
           child.y += speed * dir
+          if (isPlayerRiding) {
+            this.player.y += speed * dir
+          }
+
           if (child.y >= end) {
             child.setData('direction', -1)
           } else if (child.y <= start) {

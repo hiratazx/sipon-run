@@ -478,6 +478,7 @@ onMounted(async () => {
 
       // Set physics bounds
       this.physics.world.setBounds(0, 0, sceneWidth, sceneHeight)
+      this.physics.world.setBoundsCollision(true, true, true, false)
       this.cameras.main.setBounds(0, 0, sceneWidth, sceneHeight)
 
       // Background decorative retro grids (programmatically drawn)
